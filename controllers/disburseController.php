@@ -59,8 +59,8 @@
             return json_encode($dataBank);
         }
 
-        public function getAllData() {
-            $dataTransaksi = $this->model->getDataDisburse();
+        public function getData() {
+            $dataTransaksi = $this->model->getDataInvoice();
             header('Content-Type: application/json');
 
             return json_encode($dataTransaksi);
@@ -77,9 +77,25 @@
                 return json_encode($dataInquiry); 
             }else{
                 return json_encode($this->validasiJson($jsonObj));
-            }
-            
+            }   
         }
 
+        public function Disbursement() {
+            header('Content-Type: application/json');
+            $message = "";
+            $jsonReq = file_get_contents('php://input');
+            $jsonObj = json_decode($jsonReq);
+
+            if($jsonObj->{'invoiceNumber'} != '') {
+                $hasil = $this->model->modelDisbursement($jsonObj->{'invoiceNumber'});
+                return json_encode($hasil);
+            } else {
+                $message = "Invoice number wajib diisi";
+                return json_encode(array(
+                    'status' => '422',
+                    'message' => $message
+                ));
+            }
+        }
     }
 ?>

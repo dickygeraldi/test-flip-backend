@@ -1,5 +1,5 @@
 <?php 
-    include 'config/autoload.php';
+    include_once 'config/autoload.php';
 
     // Create connection database
     function database() {
