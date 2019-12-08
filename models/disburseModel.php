@@ -33,7 +33,7 @@
 
         public function getInvoice($invoice) {
             $connection = database();
-            $sql = 'SELECT bankCode, accountNumber, amount, status, remark  FROM Invoice WHERE invoiceId = "'.$invoice.'"';
+            $sql = 'SELECT *  FROM Invoice WHERE invoiceId = "'.$invoice.'"';
             $hasil = $connection->query($sql);
 
             closeDb($connection);
@@ -86,6 +86,18 @@
         public function updateStatusInvoice($invoice, $status) {
             $connection = database();
             $sql = "UPDATE Invoice SET status = '".$status."' WHERE invoiceId = '".$invoice."'";
+
+            if($connection->query($sql) === true) {
+                return true;
+            }else{
+                return "Error: ". $connection->error;
+            }
+            closeDb($connection);
+        }
+
+        public function updateDisburse($invoice, $responseBody) {
+            $connection = database();
+            $sql = "UPDATE Disburse SET timeServed = '".$responseBody->{"time_served"}."', receipt = '".$responseBody->{"receipt"}."' WHERE invoiceId = '".$invoice."'";
 
             if($connection->query($sql) === true) {
                 return true;
@@ -261,44 +273,69 @@
             $response = array();
             $checkInvoice = $this->getInvoice($invoice);
             $checkRefNum = $this->checkRefNum($invoice);
-            $url = env('BASE_URL_DISBURSEMENT').''.env('ENDPOINT_DISBURSE');
 
             if($checkInvoice->num_rows > 0){
+                $invoiceDetails = array();
                 $row = mysqli_fetch_assoc($checkInvoice);
                 $rowDisburse = mysqli_fetch_assoc($checkRefNum);
+                $url = env('BASE_URL_DISBURSEMENT').''.env('ENDPOINT_DISBURSE').'/'.$rowDisburse['refNum'];
                 
+                $data['invoiceId'] = $invoice;
+                $data['bankCode'] = $row['bankCode'];
+                $data['accountNumber'] = $row['accountNumber'];
+                $data['accountName'] = $row['accountName'];
+                $data['remark'] = $row['remark'];
+                $data['fee'] = $rowDisburse['fee'];
+
                 if($row['status'] === 'PENDING'){
                     $header = array (
                         'Content-Type' => 'application/x-www-form-urlencoded'
                     );
-    
-                    $request = $this->HttpRequest($url.'/'.$row['refNum'], "", $header, 'GET');
+                    
+                    $request = $this->HttpRequest($url, "", $header, 'GET');
                     $responseBody = json_decode($request);
+                    
+                    if($responseBody->{"status"} === 'PENDING'){
+                        $data['status'] = $responseBody->{"status"};
+                        $data['timeDisburse'] = $responseBody->{"time_served"};
+                        $data['receipt'] = $responseBody->{"receipt"};
+                    }else{
+                        $this->updateStatusInvoice($invoice, $responseBody->{"status"});
+                        $this->updateDisburse($invoice, $responseBody);
+                        $data['status'] = $responseBody->{"status"};
+                        $data['timeDisburse'] = $responseBody->{"time_served"};
+                        $data['receipt'] = $responseBody->{"receipt"};
+                    }
                 }else{
-
+                    $data['status'] = $row['status'];
+                    $data['timeDisburse'] = $rowDisburse['timeServed'];
+                    $data['receipt'] = $rowDisburse['receipt'];
                 }
             }else{
                 $message = "Data invoice tidak ditemukan";
             }
 
+            array_push($invoiceDetails, $data);
             $response = array(
                 "statusCode" => "00",
                 "message" => $message
             );
-            $response["data"] = $responseBody;
+            $response["data"] = $invoiceDetails;
             return $response;
         }
 
         public function HttpRequest($url, $data, $content, $method) {
-            $curlRequest = curl_init($url); 
+            $curlRequest = curl_init();
+            curl_setopt($curlRequest, CURLOPT_URL, $url); 
             curl_setopt($curlRequest, CURLOPT_TIMEOUT, 30);
             curl_setopt($curlRequest, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
             curl_setopt($curlRequest, CURLOPT_HTTPHEADER, $content);
             curl_setopt($curlRequest, CURLOPT_USERPWD, env('HEADER_AUTH_FLIP').":");  
             curl_setopt($curlRequest, CURLOPT_RETURNTRANSFER, true);
-            if($method === 'POST')
+            if($method === 'POST'){
                 curl_setopt($curlRequest, CURLOPT_CUSTOMREQUEST, $method);
                 curl_setopt($curlRequest, CURLOPT_POSTFIELDS, $data);
+            }
 
             $responseDisburse = curl_exec($curlRequest);
             curl_close($curlRequest);
