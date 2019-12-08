@@ -33,7 +33,7 @@
 
         public function getInvoice($invoice) {
             $connection = database();
-            $sql = 'SELECT bankCode, accountNumber, amount, remark  FROM Invoice WHERE invoiceId = "'.$invoice.'"';
+            $sql = 'SELECT bankCode, accountNumber, amount, status, remark  FROM Invoice WHERE invoiceId = "'.$invoice.'"';
             $hasil = $connection->query($sql);
 
             closeDb($connection);
@@ -53,6 +53,19 @@
             closeDb($connection);
         }
 
+        public function checkRefNum($invoice) {
+            $connection = database();
+            $sql = 'SELECT * FROM Disburse WHERE invoiceId = "'.$invoice.'"';
+            $hasil = $connection->query($sql);
+
+            if($hasil->num_rows > 0){
+                return $hasil;
+            }else{
+                return "Errpr: ". $connection->error;
+            }
+            closeDb($connection);
+        }
+
         public function insertDataInvoice($data) {
             $connection = database();
             $sql = "INSERT INTO Invoice (
@@ -67,6 +80,35 @@
                 return "Error: ". $connection->error;
             }
 
+            closeDb($connection);
+        }
+
+        public function updateStatusInvoice($invoice, $status) {
+            $connection = database();
+            $sql = "UPDATE Invoice SET status = '".$status."' WHERE invoiceId = '".$invoice."'";
+
+            if($connection->query($sql) === true) {
+                return true;
+            }else{
+                return "Error: ". $connection->error;
+            }
+            closeDb($connection);
+        }
+
+        public function insertDataDisbursement($data, $invoice) {
+            $connection = database();
+            $sql = "INSERT INTO Disburse (
+                id, invoiceId, timeServed, fee, beneficiaryName, refNum
+            ) VALUES (
+                '".$this->generateInvoice(6)."','".$invoice."', null, '".$data->{"fee"}."', '".$data->{"beneficiary_name"}."', '".$data->{'id'}."'
+            )";
+
+            if($connection->query($sql) === true) {
+                return true;
+            }else{
+                return "Error: ". $connection->error;
+            }
+            
             closeDb($connection);
         }
 
@@ -133,7 +175,7 @@
 
             if($hasil === true){
                 $data['invoice'] = $this->generateInvoice(6);
-                $data['status'] = "PENDING";
+                $data['status'] = "INQUIRY";
                 $data['createdAt'] = date("Y-m-d h:i:sa");;
                 $data['bankCode'] = $jsonData->{'bankCode'};
                 $data['accountName'] = $jsonData->{'accountName'};
@@ -157,32 +199,50 @@
                 "message" => $message
             );
             
-            $response['data'] = $dataInquiry;
+                $response['data'] = $dataInquiry;
             return $response;
         }
 
         public function modelDisbursement($invoice) {
             $message = "";
+            $responseData = array();
             $checkInvoice = $this->getInvoice($invoice);
             $url = env('BASE_URL_DISBURSEMENT').''.env('ENDPOINT_DISBURSE');
             
             if($checkInvoice->num_rows > 0){
-                while($row = $checkInvoice->fetch_assoc()){
+                $row = mysqli_fetch_assoc($checkInvoice);
+                if($row['status'] === 'INQUIRY'){
                     $data = array (
                         'account_number' => $row['accountNumber'],
                         'bank_code' => $row['bankCode'],
                         'amount' => $row['amount'],
                         'remark' => $row['remark']
                     );
-
+    
                     $header = array (
                         'Content-Type' => 'application/x-www-form-urlencoded'
                     );
-
-                    $response = $this->HttpRequest($url, $data, $header, 'POST');
-                    $responseBody = json_decode($response);
+    
+                    $request = $this->HttpRequest($url, $data, $header, 'POST');
+                    $responseBody = json_decode($request);
                     
-                    $message = "Berhasil mengirim data ke Flip";   
+                    $dataDisbursement['statusDisburse'] = $responseBody->{"status"};
+                    $dataDisbursement['timestamp'] = $responseBody->{"timestamp"};
+                    $dataDisbursement['bankCode'] = $responseBody->{'bank_code'};
+                    
+                    $queryHasil = $this->insertDataDisbursement($responseBody, $invoice);
+                    if($queryHasil === true) {
+                        array_push($responseData, $dataDisbursement);
+                        $message = "Dana Disbursement berhasil dikirim";
+                    }else{
+                        $message = $queryHasil;
+                    }
+
+                    $queryHasil2 = $this->updateStatusInvoice($invoice, 'PENDING');
+                } else if($row['status'] == 'PENDING') {
+                    $message = "Disbursement sedang di proses";
+                } else{
+                    $message = "Invoice tersebut sudah melakukan disbursement";
                 }
             }else{
                 $message = "Data invoice tidak ditemukan";
@@ -192,7 +252,40 @@
                 "statusCode" => "00",
                 "message" => $message
             );
-        
+            $response["data"] = $responseData;
+            return $response;
+        }
+
+        public function checkDetailInvoice($invoice){
+            $message = "";
+            $response = array();
+            $checkInvoice = $this->getInvoice($invoice);
+            $checkRefNum = $this->checkRefNum($invoice);
+            $url = env('BASE_URL_DISBURSEMENT').''.env('ENDPOINT_DISBURSE');
+
+            if($checkInvoice->num_rows > 0){
+                $row = mysqli_fetch_assoc($checkInvoice);
+                $rowDisburse = mysqli_fetch_assoc($checkRefNum);
+                
+                if($row['status'] === 'PENDING'){
+                    $header = array (
+                        'Content-Type' => 'application/x-www-form-urlencoded'
+                    );
+    
+                    $request = $this->HttpRequest($url.'/'.$row['refNum'], "", $header, 'GET');
+                    $responseBody = json_decode($request);
+                }else{
+
+                }
+            }else{
+                $message = "Data invoice tidak ditemukan";
+            }
+
+            $response = array(
+                "statusCode" => "00",
+                "message" => $message
+            );
+            $response["data"] = $responseBody;
             return $response;
         }
 
@@ -200,15 +293,17 @@
             $curlRequest = curl_init($url); 
             curl_setopt($curlRequest, CURLOPT_TIMEOUT, 30);
             curl_setopt($curlRequest, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
-            curl_setopt($curlRequest, CURLOPT_CUSTOMREQUEST, $method);
-            curl_setopt($curlRequest, CURLOPT_POSTFIELDS, $data);
             curl_setopt($curlRequest, CURLOPT_HTTPHEADER, $content);
             curl_setopt($curlRequest, CURLOPT_USERPWD, env('HEADER_AUTH_FLIP').":");  
+            curl_setopt($curlRequest, CURLOPT_RETURNTRANSFER, true);
+            if($method === 'POST')
+                curl_setopt($curlRequest, CURLOPT_CUSTOMREQUEST, $method);
+                curl_setopt($curlRequest, CURLOPT_POSTFIELDS, $data);
 
-            $response = curl_exec($curlRequest);
+            $responseDisburse = curl_exec($curlRequest);
             curl_close($curlRequest);
 
-            return $response;
+            return $responseDisburse;
         }
     }
 ?>

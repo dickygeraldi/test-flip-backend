@@ -97,5 +97,22 @@
                 ));
             }
         }
+
+        public function checkDetailInvoice() {
+            header('Content-Type: application/json');
+            $jsonReq = file_get_contents('php://input');
+            $jsonObj = json_decode($jsonReq);
+
+            if($jsonObj->{'invoiceNumber'} != '') {
+                $hasil = $this->model->checkDetailInvoice($jsonObj->{'invoiceNumber'});
+                return json_encode($hasil);
+            } else {
+                $message = "Invoice number wajib diisi";
+                return json_encode(array(
+                    'status' => '422',
+                    'message' => $message
+                ));
+            }
+        }
     }
 ?>

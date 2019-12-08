@@ -22,11 +22,10 @@
       'Disburse' => "CREATE TABLE Disburse (
         id varchar(6),
         invoiceId varchar(6),
-        statusDisburse varchar(10),
         timeServed varchar(100),
-        amount integer,
         fee integer,
         beneficiaryName varchar(20),
+        receipt varchar(100),
         refNum varchar(20)
       );",
       'Foreign_key1' => "ALTER TABLE Invoice ADD FOREIGN KEY (bankCode) REFERENCES Bank (bankCode);",

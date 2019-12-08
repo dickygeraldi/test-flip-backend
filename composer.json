@@ -1,0 +1,13 @@
+{
+    "name": "kid1412d/test-flip",
+    "description": "Backend Test for join Flip.id",
+    "type": "project",
+    "license": "GNU General Public License v3.0",
+    "authors": [
+        {
+            "name": "Dicky Geraldi",
+            "email": "dickygeraldi@gmail.com"
+        }
+    ],
+    "require": {}
+}
