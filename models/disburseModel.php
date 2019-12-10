@@ -83,9 +83,13 @@
             closeDb($connection);
         }
 
-        public function updateStatusInvoice($invoice, $status) {
+        public function updateStatusInvoice($invoice, $data) {
             $connection = database();
-            $sql = "UPDATE Invoice SET status = '".$status."' WHERE invoiceId = '".$invoice."'";
+            if($data->{"status"} != ""){
+                $sql = "UPDATE Invoice SET status = '".$data->{"status"}."', amount = ".$data->{"amount"}." WHERE invoiceId = '".$invoice."'";
+            }else{
+                $sql = "UPDATE Invoice SET status = '".$data."'WHERE invoiceId = '".$invoice."'";
+            }
 
             if($connection->query($sql) === true) {
                 return true;
@@ -219,7 +223,7 @@
             $message = "";
             $responseData = array();
             $checkInvoice = $this->getInvoice($invoice);
-            $url = env('BASE_URL_DISBURSEMENT').''.env('ENDPOINT_DISBURSE');
+            $url = env('BASE_URL_DISBURSEMENT').'/'.env('ENDPOINT_DISBURSE');
             
             if($checkInvoice->num_rows > 0){
                 $row = mysqli_fetch_assoc($checkInvoice);
@@ -237,20 +241,23 @@
     
                     $request = $this->HttpRequest($url, $data, $header, 'POST');
                     $responseBody = json_decode($request);
-                    
-                    $dataDisbursement['statusDisburse'] = $responseBody->{"status"};
-                    $dataDisbursement['timestamp'] = $responseBody->{"timestamp"};
-                    $dataDisbursement['bankCode'] = $responseBody->{'bank_code'};
-                    
-                    $queryHasil = $this->insertDataDisbursement($responseBody, $invoice);
-                    if($queryHasil === true) {
-                        array_push($responseData, $dataDisbursement);
-                        $message = "Dana Disbursement berhasil dikirim";
+                    if($responseBody->{"id"} != ""){
+                        $dataDisbursement['statusDisburse'] = $responseBody->{"status"};
+                        $dataDisbursement['timestamp'] = $responseBody->{"timestamp"};
+                        $dataDisbursement['bankCode'] = $responseBody->{'bank_code'};
+                        
+                        $queryHasil = $this->insertDataDisbursement($responseBody, $invoice);
+                        if($queryHasil === true) {
+                            array_push($responseData, $dataDisbursement);
+                            $message = "Dana Disbursement berhasil dikirim";
+                        }else{
+                            $message = $queryHasil;
+                        }
+    
+                        $queryHasil2 = $this->updateStatusInvoice($invoice, 'PENDING');
                     }else{
-                        $message = $queryHasil;
+                        $message = "Gagal mendapatkan request";
                     }
-
-                    $queryHasil2 = $this->updateStatusInvoice($invoice, 'PENDING');
                 } else if($row['status'] == 'PENDING') {
                     $message = "Disbursement sedang di proses";
                 } else{
@@ -278,7 +285,6 @@
                 $invoiceDetails = array();
                 $row = mysqli_fetch_assoc($checkInvoice);
                 $rowDisburse = mysqli_fetch_assoc($checkRefNum);
-                $url = env('BASE_URL_DISBURSEMENT').''.env('ENDPOINT_DISBURSE').'/'.$rowDisburse['refNum'];
                 
                 $data['invoiceId'] = $invoice;
                 $data['bankCode'] = $row['bankCode'];
@@ -287,7 +293,12 @@
                 $data['remark'] = $row['remark'];
                 $data['fee'] = $rowDisburse['fee'];
 
-                if($row['status'] === 'PENDING'){
+                if($row['status'] === 'INQUIRY'){
+                    $data['status'] = $row['status'];
+                    $data['amount'] = $row['amount'];
+                }else{
+                    $url = env('BASE_URL_DISBURSEMENT').''.env('ENDPOINT_DISBURSE').'/'.$rowDisburse['refNum'];
+
                     $header = array (
                         'Content-Type' => 'application/x-www-form-urlencoded'
                     );
@@ -295,21 +306,12 @@
                     $request = $this->HttpRequest($url, "", $header, 'GET');
                     $responseBody = json_decode($request);
                     
-                    if($responseBody->{"status"} === 'PENDING'){
-                        $data['status'] = $responseBody->{"status"};
-                        $data['timeDisburse'] = $responseBody->{"time_served"};
-                        $data['receipt'] = $responseBody->{"receipt"};
-                    }else{
-                        $this->updateStatusInvoice($invoice, $responseBody->{"status"});
-                        $this->updateDisburse($invoice, $responseBody);
-                        $data['status'] = $responseBody->{"status"};
-                        $data['timeDisburse'] = $responseBody->{"time_served"};
-                        $data['receipt'] = $responseBody->{"receipt"};
-                    }
-                }else{
-                    $data['status'] = $row['status'];
-                    $data['timeDisburse'] = $rowDisburse['timeServed'];
-                    $data['receipt'] = $rowDisburse['receipt'];
+                    $this->updateStatusInvoice($invoice, $responseBody);
+                    $this->updateDisburse($invoice, $responseBody);
+                    $data['status'] = $responseBody->{"status"};
+                    $data['timeDisburse'] = $responseBody->{"time_served"};
+                    $data['receipt'] = $responseBody->{"receipt"};
+                    $data['amount'] = $responseBody->{"amount"};
                 }
             }else{
                 $message = "Data invoice tidak ditemukan";
@@ -333,6 +335,7 @@
             curl_setopt($curlRequest, CURLOPT_USERPWD, env('HEADER_AUTH_FLIP').":");  
             curl_setopt($curlRequest, CURLOPT_RETURNTRANSFER, true);
             if($method === 'POST'){
+                curl_setopt($curlRequest, CURLOPT_CUSTOMREQUEST, $method);
                 curl_setopt($curlRequest, CURLOPT_CUSTOMREQUEST, $method);
                 curl_setopt($curlRequest, CURLOPT_POSTFIELDS, $data);
             }

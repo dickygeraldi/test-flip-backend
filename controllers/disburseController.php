@@ -9,13 +9,13 @@
 
         public function validasiJson($dataJson) {
             $response = array();
-            if($dataJson->{'accountNumber'} != '' || $dataJson->{'accountName'} != '' || $dataJson->{'amount'} != '' || $dataJson->{'bankCode'} != ''){
+            if($dataJson->{'accountNumber'} != '' && $dataJson->{'accountName'} != '' && $dataJson->{'amount'} != '' && $dataJson->{'bankCode'} != ''){
                 if(strlen($dataJson->{'accountNumber'}) < 11){
                     true;
                 }else{
                     $response['accountNumber'] = [
                         'message' => "Data account number tidak boleh lebih dari 10",
-                        'field' => 'AccountNumber'
+                        'field' => 'AccountNumber'  
                     ];
                 }
                 
@@ -28,7 +28,7 @@
                     ];
                 }
 
-                if($dataJson->{'amount'} <= 100000 && $dataJson->{'amount'} >= 5000000){
+                if($dataJson->{'amount'} <= 100000 || $dataJson->{'amount'} >= 5000000){
                     $response['amount'] = [
                         'message' => "Data amount tidak boleh lebih dari 5 juta dan kurang dari 100 ribu",
                         'field' => 'amount'

@@ -25,7 +25,7 @@
         timeServed varchar(100),
         fee integer,
         beneficiaryName varchar(20),
-        receipt varchar(100),
+        receipt varchar(300),
         refNum varchar(20)
       );",
       'Foreign_key1' => "ALTER TABLE Invoice ADD FOREIGN KEY (bankCode) REFERENCES Bank (bankCode);",
