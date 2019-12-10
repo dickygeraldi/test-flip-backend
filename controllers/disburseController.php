@@ -18,7 +18,16 @@
                         'field' => 'AccountNumber'  
                     ];
                 }
-                
+
+                if(is_numeric($dataJson->{'accountNumber'}) === true) {
+                    true;
+                }else{
+                    $response['accountNumber'] = [
+                        'message' => "Data account number harus numeric",
+                        'field' => 'AccountNumber'  
+                    ];
+                }
+
                 if(strlen($dataJson->{'accountName'}) < 51){
                     true;
                 }else{
@@ -37,6 +46,15 @@
                     true;
                 }
 
+                if(is_numeric($dataJson->{'amount'})){
+                    true;
+                }else{
+                    $response['amount'] = [
+                        'message' => "Data amount harus bernilai integer",
+                        'field' => 'amount'
+                    ];
+                }
+                
                 if(strlen($dataJson->{'bankCode'}) < 4){
                     true;
                 }else{
@@ -90,6 +108,7 @@
                 $hasil = $this->model->modelDisbursement($jsonObj->{'invoiceNumber'});
                 return json_encode($hasil);
             } else {
+                
                 $message = "Invoice number wajib diisi";
                 return json_encode(array(
                     'status' => '422',

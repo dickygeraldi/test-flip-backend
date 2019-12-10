@@ -8,7 +8,7 @@
         }
 
         public function generateInvoice($length) {
-            $strResult = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+            $strResult = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
             return substr(str_shuffle($strResult), 0, $length);
         }
