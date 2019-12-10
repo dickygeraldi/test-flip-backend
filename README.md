@@ -52,7 +52,8 @@ GNU General Public License v3.0
 
 
 **Author**
-Dicky Geraldi, Software Engineer Freelance
+----
+Dicky Geraldi, Software Engineer && System Analyst
 
 
  
